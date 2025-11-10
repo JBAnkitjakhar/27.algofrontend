@@ -1,32 +1,5 @@
-// // src/app/interview-prep/[topicId]/[docId]/page.tsx
-// // Console Error
-
-
-// // Received NaN for the `value` attribute. If this is expected, cast the value to a string.
-
-// // src/app/admin/courses/[topicId]/[docId]/page.tsx (234:15) @ AdminDocumentEditPage
-
-
-// //   232 |                 Display Order
-// //   233 |               </label>
-// // > 234 |               <input
-// //       |               ^
-// //   235 |                 type="number"
-// //   236 |                 value={formData.displayOrder}
-// //   237 |                 onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value) })}
-// // Call Stack
-// // 53
-
-// // Show 51 ignore-listed frame(s)
-// // input
-// // <anonymous>
-// // AdminDocumentEditPage              solve this it comes when during doc edition admin try to change display order
-
-// // src/app/admin/courses/[topicId]/[docId]/page.tsx (234:15)     
-// 'use client';
-
- 
 // src/app/interview-prep/[topicId]/[docId]/page.tsx
+// REAL FIX - Apply syntax highlighting on user side
 
 'use client';
 
@@ -42,9 +15,9 @@ import UserLayout from '@/components/layout/UserLayout';
 import { dateUtils } from '@/lib/utils/common';
 import { Loader2Icon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import hljs from 'highlight.js/lib/core';
 
-// Import the same languages as in the editor
+// Import highlight.js with common languages
+import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
 import python from 'highlight.js/lib/languages/python';
@@ -66,7 +39,7 @@ import bash from 'highlight.js/lib/languages/bash';
 import yaml from 'highlight.js/lib/languages/yaml';
 import markdown from 'highlight.js/lib/languages/markdown';
 
-// Import the CSS file for syntax highlighting
+// Import the CSS for syntax highlighting
 import '@/components/admin/styles/CourseEditorHighlighting.css';
 
 // Register all languages
@@ -113,35 +86,54 @@ function DocumentContent() {
   const { data: document, isLoading: isLoadingDoc } = useDocument(docId);
   const { data: topic } = useTopic(topicId);
 
-  // Apply syntax highlighting to code blocks after content is rendered
-  // Using same delay pattern as CourseEditor (50ms)
+  // Apply syntax highlighting after content is rendered
   useEffect(() => {
     if (contentRef.current && document?.content) {
-      const timer = setTimeout(() => {
-        // Find all code blocks inside pre tags
-        const codeBlocks = contentRef.current?.querySelectorAll('pre code');
-        codeBlocks?.forEach((block) => {
-          const codeElement = block as HTMLElement;
-          
-          // Check if language class exists, if not try to detect or use default
-          let hasLanguageClass = false;
-          codeElement.classList.forEach(cls => {
-            if (cls.startsWith('language-')) {
-              hasLanguageClass = true;
-            }
-          });
-          
-          // If no language class, add a default one (you can change this based on your needs)
-          if (!hasLanguageClass) {
-            codeElement.classList.add('language-java'); // or 'language-javascript', etc.
-          }
-          
-          // Apply syntax highlighting
-          hljs.highlightElement(codeElement);
-        });
-      }, 50);
+      // console.log('👀 USER: Applying syntax highlighting to code blocks');
       
-      return () => clearTimeout(timer);
+      // Find all code blocks
+      const codeBlocks = contentRef.current.querySelectorAll('pre code');
+      // console.log('👀 USER: Found code blocks:', codeBlocks.length);
+      
+      codeBlocks.forEach((block, index) => {
+        const codeElement = block as HTMLElement;
+        
+        // Get the language from class (e.g., "language-java")
+        let language = 'plaintext';
+        const classes = codeElement.className.split(' ');
+        for (const cls of classes) {
+          if (cls.startsWith('language-')) {
+            language = cls.replace('language-', '');
+            break;
+          }
+        }
+        
+        // console.log(`👀 USER: Block ${index} language:`, language);
+        
+        // Apply highlighting
+        try {
+          // If language is registered, use it; otherwise use auto-detection
+          if (hljs.getLanguage(language)) {
+            const result = hljs.highlight(codeElement.textContent || '', { 
+              language: language,
+              ignoreIllegals: true 
+            });
+            codeElement.innerHTML = result.value;
+            codeElement.classList.add('hljs');
+            // console.log(`✅ USER: Applied ${language} highlighting to block ${index}`);
+          } else {
+            // Auto-detect language
+            const result = hljs.highlightAuto(codeElement.textContent || '');
+            codeElement.innerHTML = result.value;
+            codeElement.classList.add('hljs');
+            // console.log(`✅ USER: Auto-detected ${result.language} for block ${index}`);
+          }
+        } catch (error) {
+          console.error(`❌ USER: Failed to highlight block ${index}:`, error);
+        }
+      });
+      
+      // console.log('✅ USER: Syntax highlighting complete!');
     }
   }, [document?.content]);
 
@@ -218,7 +210,7 @@ function DocumentContent() {
               </div>
             </div>
 
-            {/* Document Body - Wrapped with ProseMirror class to apply CSS styles */}
+            {/* Document Body */}
             <div className="px-8 py-6">
               <div 
                 ref={contentRef}

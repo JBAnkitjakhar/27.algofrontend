@@ -1,4 +1,5 @@
 // src/app/admin/courses/[topicId]/[docId]/page.tsx
+// DEBUG VERSION - with console logs
 
 'use client';
 
@@ -48,7 +49,6 @@ export default function AdminDocumentEditPage() {
   // Initialize form data when document loads
   useEffect(() => {
     if (isNew && !isInitialized) {
-      // For new documents, initialize immediately
       setFormData({
         title: '',
         topicId: topicId,
@@ -58,14 +58,25 @@ export default function AdminDocumentEditPage() {
       });
       setIsInitialized(true);
     } else if (document && !isInitialized) {
-      // For existing documents, initialize once with document data
-      // Use a small delay to ensure proper state updates
       const timer = setTimeout(() => {
-        console.log('Initializing with document content length:', document.content?.length);
+        // console.log('📄 ADMIN: Initializing with document content length:', document.content?.length);
+        
+        // DEBUG: Log a sample of code blocks from loaded document
+        // if (document.content) {
+        //   const parser = new DOMParser();
+        //   const doc = parser.parseFromString(document.content, 'text/html');
+        //   const codeBlocks = doc.querySelectorAll('pre code');
+        //   // console.log('📄 ADMIN: Found code blocks:', codeBlocks.length);
+        //   if (codeBlocks.length > 0) {
+        //     // console.log('📄 ADMIN: First code block HTML:', codeBlocks[0].outerHTML.substring(0, 200));
+        //     // console.log('📄 ADMIN: First code block classes:', codeBlocks[0].className);
+        //   }
+        // }
+        
         setFormData({
           title: document.title,
           topicId: document.topicId,
-          displayOrder: document.displayOrder,
+          displayOrder: document.displayOrder || 1,
           content: document.content || '',
           imageUrls: document.imageUrls || []
         });
@@ -90,9 +101,30 @@ export default function AdminDocumentEditPage() {
     setIsSaving(true);
     
     try {
-      // Extract image URLs from content
+      // DEBUG: Log the HTML content being saved
+      // console.log('💾 ADMIN: Saving document with content length:', formData.content.length);
+      
+      // Extract and log code blocks
       const parser = new DOMParser();
       const doc = parser.parseFromString(formData.content, 'text/html');
+      // const codeBlocks = doc.querySelectorAll('pre code');
+      // console.log('💾 ADMIN: Saving with code blocks:', codeBlocks.length);
+      
+      // if (codeBlocks.length > 0) {
+      //   console.log('💾 ADMIN: First code block HTML being saved:');
+      //   console.log(codeBlocks[0].outerHTML.substring(0, 300));
+      //   console.log('💾 ADMIN: First code block classes:', codeBlocks[0].className);
+      //   console.log('💾 ADMIN: First code block has hljs classes:', codeBlocks[0].className.includes('hljs'));
+        
+      //   // Log all span elements with hljs classes inside code block
+      //   const spans = codeBlocks[0].querySelectorAll('span[class*="hljs"]');
+      //   console.log('💾 ADMIN: Number of hljs spans in first code block:', spans.length);
+      //   if (spans.length > 0) {
+      //     console.log('💾 ADMIN: Sample span classes:', spans[0].className);
+      //   }
+      // }
+      
+      // Extract image URLs from content
       const images = doc.querySelectorAll('img');
       const imageUrls = Array.from(images).map(img => img.src).filter(src => 
         src.startsWith('https://res.cloudinary.com')
@@ -102,6 +134,13 @@ export default function AdminDocumentEditPage() {
         ...formData,
         imageUrls
       };
+
+      // console.log('💾 ADMIN: Data to save:', {
+      //   title: dataToSave.title,
+      //   contentLength: dataToSave.content.length,
+      //   imageCount: imageUrls.length,
+      //   codeBlockCount: codeBlocks.length
+      // });
 
       if (isNew) {
         await createDocumentMutation.mutateAsync(dataToSave as CreateDocumentRequest);
@@ -115,7 +154,7 @@ export default function AdminDocumentEditPage() {
         toast.success('Document updated successfully');
       }
     } catch (error) {
-      console.error('Failed to save document:', error);
+      console.error('❌ ADMIN: Failed to save document:', error);
       toast.error('Failed to save document');
     } finally {
       setIsSaving(false);
@@ -124,14 +163,12 @@ export default function AdminDocumentEditPage() {
 
   const handleRemoveImage = async (imageUrl: string) => {
     if (window.confirm('Remove this image from the document?')) {
-      // Remove from content
       const newContent = formData.content.replace(
         new RegExp(`<img[^>]*src="${imageUrl}"[^>]*>`, 'g'),
         ''
       );
       setFormData({ ...formData, content: newContent });
       
-      // Delete from Cloudinary
       try {
         await deleteImageMutation.mutateAsync(imageUrl);
         toast.success('Image removed');
@@ -141,7 +178,6 @@ export default function AdminDocumentEditPage() {
     }
   };
 
-  // Show loading while fetching document
   if (!isNew && (isLoadingDoc || !isInitialized)) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-gray-50">
@@ -233,9 +269,15 @@ export default function AdminDocumentEditPage() {
               </label>
               <input
                 type="number"
-                value={formData.displayOrder}
-                onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value) })}
+                value={formData.displayOrder || 1}
+                onChange={(e) => {
+                  const value = e.target.value === '' ? 1 : parseInt(e.target.value, 10);
+                  if (!isNaN(value) && value > 0) {
+                    setFormData({ ...formData, displayOrder: value });
+                  }
+                }}
                 min="1"
+                placeholder="1"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -249,13 +291,17 @@ export default function AdminDocumentEditPage() {
             {isInitialized && (
               <CourseEditor
                 content={formData.content}
-                onChange={(content) => setFormData({ ...formData, content })}
+                onChange={(content) => {
+                  // DEBUG: Log when content changes in editor
+                  // console.log('✏️ ADMIN: Editor content changed, length:', content.length);
+                  setFormData({ ...formData, content });
+                }}
                 placeholder="Start writing your document content..."
               />
             )}
           </div>
 
-          {/* Image Management (if editing existing document) */}
+          {/* Image Management */}
           {!isNew && formData.imageUrls && formData.imageUrls.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

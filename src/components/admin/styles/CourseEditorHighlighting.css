@@ -31,6 +31,19 @@
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
 }
 
+/* CENTER IMAGES - Images should be centered and on their own line */
+.ProseMirror img {
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  margin-top: 16px !important;
+  margin-bottom: 16px !important;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
 /* Syntax highlighting tokens - matching VS Code dark theme */
 .hljs-comment,
 .hljs-quote {
