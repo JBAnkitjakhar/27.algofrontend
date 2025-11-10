@@ -1,3 +1,31 @@
+// // src/app/interview-prep/[topicId]/[docId]/page.tsx
+// // Console Error
+
+
+// // Received NaN for the `value` attribute. If this is expected, cast the value to a string.
+
+// // src/app/admin/courses/[topicId]/[docId]/page.tsx (234:15) @ AdminDocumentEditPage
+
+
+// //   232 |                 Display Order
+// //   233 |               </label>
+// // > 234 |               <input
+// //       |               ^
+// //   235 |                 type="number"
+// //   236 |                 value={formData.displayOrder}
+// //   237 |                 onChange={(e) => setFormData({ ...formData, displayOrder: parseInt(e.target.value) })}
+// // Call Stack
+// // 53
+
+// // Show 51 ignore-listed frame(s)
+// // input
+// // <anonymous>
+// // AdminDocumentEditPage              solve this it comes when during doc edition admin try to change display order
+
+// // src/app/admin/courses/[topicId]/[docId]/page.tsx (234:15)     
+// 'use client';
+
+ 
 // src/app/interview-prep/[topicId]/[docId]/page.tsx
 
 'use client';
@@ -13,15 +41,109 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import UserLayout from '@/components/layout/UserLayout';
 import { dateUtils } from '@/lib/utils/common';
 import { Loader2Icon } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import hljs from 'highlight.js/lib/core';
+
+// Import the same languages as in the editor
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import java from 'highlight.js/lib/languages/java';
+import cpp from 'highlight.js/lib/languages/cpp';
+import c from 'highlight.js/lib/languages/c';
+import csharp from 'highlight.js/lib/languages/csharp';
+import php from 'highlight.js/lib/languages/php';
+import ruby from 'highlight.js/lib/languages/ruby';
+import go from 'highlight.js/lib/languages/go';
+import rust from 'highlight.js/lib/languages/rust';
+import kotlin from 'highlight.js/lib/languages/kotlin';
+import swift from 'highlight.js/lib/languages/swift';
+import sql from 'highlight.js/lib/languages/sql';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import json from 'highlight.js/lib/languages/json';
+import bash from 'highlight.js/lib/languages/bash';
+import yaml from 'highlight.js/lib/languages/yaml';
+import markdown from 'highlight.js/lib/languages/markdown';
+
+// Import the CSS file for syntax highlighting
+import '@/components/admin/styles/CourseEditorHighlighting.css';
+
+// Register all languages
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('py', python);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('c++', cpp);
+hljs.registerLanguage('c', c);
+hljs.registerLanguage('csharp', csharp);
+hljs.registerLanguage('cs', csharp);
+hljs.registerLanguage('php', php);
+hljs.registerLanguage('ruby', ruby);
+hljs.registerLanguage('rb', ruby);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('rs', rust);
+hljs.registerLanguage('kotlin', kotlin);
+hljs.registerLanguage('kt', kotlin);
+hljs.registerLanguage('swift', swift);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('shell', bash);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('yml', yaml);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('md', markdown);
 
 function DocumentContent() {
   const params = useParams();
   const router = useRouter();
   const topicId = params.topicId as string;
   const docId = params.docId as string;
+  const contentRef = useRef<HTMLDivElement>(null);
   
   const { data: document, isLoading: isLoadingDoc } = useDocument(docId);
   const { data: topic } = useTopic(topicId);
+
+  // Apply syntax highlighting to code blocks after content is rendered
+  // Using same delay pattern as CourseEditor (50ms)
+  useEffect(() => {
+    if (contentRef.current && document?.content) {
+      const timer = setTimeout(() => {
+        // Find all code blocks inside pre tags
+        const codeBlocks = contentRef.current?.querySelectorAll('pre code');
+        codeBlocks?.forEach((block) => {
+          const codeElement = block as HTMLElement;
+          
+          // Check if language class exists, if not try to detect or use default
+          let hasLanguageClass = false;
+          codeElement.classList.forEach(cls => {
+            if (cls.startsWith('language-')) {
+              hasLanguageClass = true;
+            }
+          });
+          
+          // If no language class, add a default one (you can change this based on your needs)
+          if (!hasLanguageClass) {
+            codeElement.classList.add('language-java'); // or 'language-javascript', etc.
+          }
+          
+          // Apply syntax highlighting
+          hljs.highlightElement(codeElement);
+        });
+      }, 50);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [document?.content]);
 
   if (isLoadingDoc) {
     return (
@@ -96,112 +218,17 @@ function DocumentContent() {
               </div>
             </div>
 
-            {/* Document Body */}
+            {/* Document Body - Wrapped with ProseMirror class to apply CSS styles */}
             <div className="px-8 py-6">
               <div 
-                className="prose prose-lg max-w-none dark:prose-invert"
+                ref={contentRef}
+                className="ProseMirror prose prose-lg max-w-none dark:prose-invert"
                 dangerouslySetInnerHTML={{ __html: document.content || '' }}
               />
             </div>
           </article>
-
-          {/* Additional Info */}
-          <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Document Information</h3>
-            <dl className="space-y-2">
-              <div className="flex justify-between">
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Topic</dt>
-                <dd className="text-sm text-gray-900 dark:text-white">{topic?.name || document.topicName}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Author</dt>
-                <dd className="text-sm text-gray-900 dark:text-white">{document.createdByName}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Last Updated</dt>
-                <dd className="text-sm text-gray-900 dark:text-white">{dateUtils.formatDateTime(document.updatedAt)}</dd>
-              </div>
-              {document.imageUrls && document.imageUrls.length > 0 && (
-                <div className="flex justify-between">
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Attachments</dt>
-                  <dd className="text-sm text-gray-900 dark:text-white">{document.imageUrls.length} images</dd>
-                </div>
-              )}
-            </dl>
-          </div>
         </div>
       </div>
-      
-      {/* Add custom styles for the content */}
-      <style jsx global>{`
-        .prose pre {
-          background-color: #1f2937;
-          color: #f3f4f6;
-          padding: 1rem;
-          border-radius: 0.5rem;
-          overflow-x: auto;
-        }
-        
-        .dark .prose pre {
-          background-color: #111827;
-        }
-        
-        .prose code {
-          background-color: #f3f4f6;
-          padding: 0.125rem 0.25rem;
-          border-radius: 0.25rem;
-          font-size: 0.875rem;
-        }
-        
-        .dark .prose code {
-          background-color: #374151;
-          color: #e5e7eb;
-        }
-        
-        .prose pre code {
-          background-color: transparent;
-          padding: 0;
-        }
-        
-        .prose img {
-          max-width: 100%;
-          height: auto;
-          border-radius: 0.5rem;
-          margin: 1.5rem auto;
-        }
-        
-        .prose h1 {
-          font-size: 2rem;
-          font-weight: bold;
-          margin-bottom: 1rem;
-        }
-        
-        .prose h2 {
-          font-size: 1.5rem;
-          font-weight: bold;
-          margin-top: 2rem;
-          margin-bottom: 1rem;
-        }
-        
-        .prose h3 {
-          font-size: 1.25rem;
-          font-weight: bold;
-          margin-top: 1.5rem;
-          margin-bottom: 0.75rem;
-        }
-        
-        .prose blockquote {
-          border-left: 4px solid #e5e7eb;
-          padding-left: 1rem;
-          font-style: italic;
-          color: #6b7280;
-        }
-        
-        .dark .prose blockquote {
-          border-left-color: #4b5563;
-          color: #9ca3af;
-        }
-      `}</style>
     </UserLayout>
   );
 }
