@@ -1,4 +1,4 @@
-// src/components/admin/AdminSidebar.tsx
+// src/components/admin/AdminSidebar.tsx  
 
 'use client';
 
@@ -16,6 +16,7 @@ import {
   HomeIcon,
   ChartPieIcon,
   ShieldCheckIcon,
+  AcademicCapIcon, // Added for Courses
 } from '@heroicons/react/24/outline';
 import { cn } from '@/lib/utils';
 import { ADMIN_ROUTES, ROUTES } from '@/constants';
@@ -130,6 +131,7 @@ export default function AdminSidebar({ isSuperAdmin }: AdminSidebarProps) {
     { name: 'Questions', href: ADMIN_ROUTES.QUESTIONS, icon: QuestionMarkCircleIcon },
     { name: 'Solutions', href: ADMIN_ROUTES.SOLUTIONS, icon: LightBulbIcon },
     { name: 'Categories', href: ADMIN_ROUTES.CATEGORIES, icon: TagIcon },
+    { name: 'Courses', href: ADMIN_ROUTES.COURSES || '/admin/courses', icon: AcademicCapIcon }, // Added Courses
     { name: 'Users', href: ADMIN_ROUTES.USERS, icon: UsersIcon },
     ...(isSuperAdmin ? [
       { name: 'Settings', href: ADMIN_ROUTES.SETTINGS, icon: Cog6ToothIcon },
@@ -168,7 +170,7 @@ export default function AdminSidebar({ isSuperAdmin }: AdminSidebarProps) {
         <div className="flex-grow flex flex-col">
           <nav className="flex-1 px-2 space-y-1">
             {navigation.map((item) => {
-              const isActive = pathname === item.href;
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
                 <Link
                   key={item.name}

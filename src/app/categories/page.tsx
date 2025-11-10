@@ -1,4 +1,4 @@
-// src/app/categories/page.tsx - FULLY OPTIMIZED WITH SMART CACHING
+// src/app/categories/page.tsx  
 
 "use client";
 

@@ -18,7 +18,8 @@ import {
   Menu,
   X,
   Maximize,
-  Minimize
+  Minimize,
+  GraduationCap
 } from 'lucide-react';
 import { roleUtils } from '@/lib/utils/auth';
 import { stringUtils } from '@/lib/utils/common';
@@ -80,6 +81,13 @@ const sidebarItems: SidebarItem[] = [
     icon: Code,
     href: '/compiler',
     description: 'Code editor'
+  },
+  {
+    id: 'interview-prep',
+    label: 'Interview Prep',
+    icon: GraduationCap,
+    href: '/interview-prep',
+    description: 'Courses'
   },
 ];
 
