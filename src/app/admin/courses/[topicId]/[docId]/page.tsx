@@ -1,16 +1,16 @@
 // src/app/admin/courses/[topicId]/[docId]/page.tsx
-// DEBUG VERSION - with console logs
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { Editor } from '@tiptap/react';
 import { 
   useDocument,
   useTopic,
   useCreateDocument,
   useUpdateDocument,
-  useDeleteCourseImage
+  useDeleteCourseImage,
+  useUploadCourseImage
 } from '@/hooks/useCoursesManagement';
 import CourseEditor from '@/components/admin/CourseEditor';
 import {
@@ -20,7 +20,56 @@ import {
 import toast from 'react-hot-toast';
 import { CreateDocumentRequest, UpdateDocumentRequest } from '@/types/courses';
 import Image from 'next/image';
-import { Loader2Icon, SaveIcon } from 'lucide-react';
+import { 
+  Loader2Icon, 
+  SaveIcon, 
+  AlertTriangleIcon, 
+  HelpCircleIcon,
+  Bold,
+  Italic,
+  Code,
+  Undo,
+  Redo,
+  ImageIcon,
+  Highlighter,
+  Palette,
+  Terminal
+} from 'lucide-react';
+
+// Color palettes
+const COLORS = [
+  '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
+  '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#FFC0CB',
+  '#808080', '#8B4513', '#000080', '#008000', '#FF6347'
+];
+
+const HIGHLIGHT_COLORS = [
+  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722', '#4CAF50',
+  '#00BCD4', '#03A9F4', '#2196F3', '#9C27B0', '#E91E63'
+];
+
+const CODE_LANGUAGES = [
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'python', label: 'Python' },
+  { value: 'java', label: 'Java' },
+  { value: 'cpp', label: 'C++' },
+  { value: 'c', label: 'C' },
+  { value: 'csharp', label: 'C#' },
+  { value: 'php', label: 'PHP' },
+  { value: 'ruby', label: 'Ruby' },
+  { value: 'go', label: 'Go' },
+  { value: 'rust', label: 'Rust' },
+  { value: 'kotlin', label: 'Kotlin' },
+  { value: 'swift', label: 'Swift' },
+  { value: 'sql', label: 'SQL' },
+  { value: 'html', label: 'HTML' },
+  { value: 'css', label: 'CSS' },
+  { value: 'json', label: 'JSON' },
+  { value: 'bash', label: 'Bash/Shell' },
+  { value: 'yaml', label: 'YAML' },
+  { value: 'markdown', label: 'Markdown' },
+];
 
 export default function AdminDocumentEditPage() {
   const params = useParams();
@@ -30,10 +79,11 @@ export default function AdminDocumentEditPage() {
   const isNew = docId === 'new';
   
   const { data: topic } = useTopic(topicId);
-  const { data: document, isLoading: isLoadingDoc } = useDocument(isNew ? '' : docId);
+  const { data: documentData, isLoading: isLoadingDoc } = useDocument(isNew ? '' : docId);
   const createDocumentMutation = useCreateDocument();
   const updateDocumentMutation = useUpdateDocument();
   const deleteImageMutation = useDeleteCourseImage();
+  const uploadImageMutation = useUploadCourseImage();
   
   const [formData, setFormData] = useState<CreateDocumentRequest | UpdateDocumentRequest>({
     title: '',
@@ -45,6 +95,60 @@ export default function AdminDocumentEditPage() {
   
   const [isSaving, setIsSaving] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [documentSize, setDocumentSize] = useState(0);
+  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
+  const [selectedTextColor, setSelectedTextColor] = useState('#000000');
+  const [selectedHighlightColor, setSelectedHighlightColor] = useState('#FFEB3B');
+  const [selectedLanguage, setSelectedLanguage] = useState('javascript');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [showHighlightColorPicker, setShowHighlightColorPicker] = useState(false);
+
+  // Calculate document size in real-time
+  useEffect(() => {
+    if (formData.content) {
+      const sizeInBytes = new Blob([formData.content]).size;
+      setDocumentSize(sizeInBytes);
+    } else {
+      setDocumentSize(0);
+    }
+  }, [formData.content]);
+
+  // Extract uploaded images from content for deletion UI
+  useEffect(() => {
+    if (formData.content) {
+      const parser = new window.DOMParser();
+      const doc = parser.parseFromString(formData.content, 'text/html');
+      const images = doc.querySelectorAll('img');
+      const imageUrls = Array.from(images).map(img => img.src).filter(src => 
+        src.startsWith('https://res.cloudinary.com')
+      );
+      setUploadedImages(imageUrls);
+    } else {
+      setUploadedImages([]);
+    }
+  }, [formData.content]);
+
+  // Handle click outside to close color pickers
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      
+      // Check if click is outside color picker elements
+      if (!target.closest('.color-picker-container')) {
+        setShowTextColorPicker(false);
+        setShowHighlightColorPicker(false);
+      }
+    };
+
+    if (showTextColorPicker || showHighlightColorPicker) {
+      window.document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        window.document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showTextColorPicker, showHighlightColorPicker]);
 
   // Initialize form data when document loads
   useEffect(() => {
@@ -57,35 +161,21 @@ export default function AdminDocumentEditPage() {
         imageUrls: []
       });
       setIsInitialized(true);
-    } else if (document && !isInitialized) {
+    } else if (documentData && !isInitialized) {
       const timer = setTimeout(() => {
-        // console.log('📄 ADMIN: Initializing with document content length:', document.content?.length);
-        
-        // DEBUG: Log a sample of code blocks from loaded document
-        // if (document.content) {
-        //   const parser = new DOMParser();
-        //   const doc = parser.parseFromString(document.content, 'text/html');
-        //   const codeBlocks = doc.querySelectorAll('pre code');
-        //   // console.log('📄 ADMIN: Found code blocks:', codeBlocks.length);
-        //   if (codeBlocks.length > 0) {
-        //     // console.log('📄 ADMIN: First code block HTML:', codeBlocks[0].outerHTML.substring(0, 200));
-        //     // console.log('📄 ADMIN: First code block classes:', codeBlocks[0].className);
-        //   }
-        // }
-        
         setFormData({
-          title: document.title,
-          topicId: document.topicId,
-          displayOrder: document.displayOrder || 1,
-          content: document.content || '',
-          imageUrls: document.imageUrls || []
+          title: documentData.title,
+          topicId: documentData.topicId,
+          displayOrder: documentData.displayOrder || 1,
+          content: documentData.content || '',
+          imageUrls: documentData.imageUrls || []
         });
         setIsInitialized(true);
       }, 50);
       
       return () => clearTimeout(timer);
     }
-  }, [document, isNew, topicId, isInitialized]);
+  }, [documentData, isNew, topicId, isInitialized]);
 
   const handleSave = async () => {
     if (!formData.title.trim()) {
@@ -98,33 +188,17 @@ export default function AdminDocumentEditPage() {
       return;
     }
 
+    // Block save if size exceeds 5MB
+    if (documentSize > 5 * 1024 * 1024) {
+      toast.error('Document size exceeds 5MB limit. Please reduce content size.');
+      return;
+    }
+
     setIsSaving(true);
     
     try {
-      // DEBUG: Log the HTML content being saved
-      // console.log('💾 ADMIN: Saving document with content length:', formData.content.length);
-      
-      // Extract and log code blocks
-      const parser = new DOMParser();
+      const parser = new window.DOMParser();
       const doc = parser.parseFromString(formData.content, 'text/html');
-      // const codeBlocks = doc.querySelectorAll('pre code');
-      // console.log('💾 ADMIN: Saving with code blocks:', codeBlocks.length);
-      
-      // if (codeBlocks.length > 0) {
-      //   console.log('💾 ADMIN: First code block HTML being saved:');
-      //   console.log(codeBlocks[0].outerHTML.substring(0, 300));
-      //   console.log('💾 ADMIN: First code block classes:', codeBlocks[0].className);
-      //   console.log('💾 ADMIN: First code block has hljs classes:', codeBlocks[0].className.includes('hljs'));
-        
-      //   // Log all span elements with hljs classes inside code block
-      //   const spans = codeBlocks[0].querySelectorAll('span[class*="hljs"]');
-      //   console.log('💾 ADMIN: Number of hljs spans in first code block:', spans.length);
-      //   if (spans.length > 0) {
-      //     console.log('💾 ADMIN: Sample span classes:', spans[0].className);
-      //   }
-      // }
-      
-      // Extract image URLs from content
       const images = doc.querySelectorAll('img');
       const imageUrls = Array.from(images).map(img => img.src).filter(src => 
         src.startsWith('https://res.cloudinary.com')
@@ -134,13 +208,6 @@ export default function AdminDocumentEditPage() {
         ...formData,
         imageUrls
       };
-
-      // console.log('💾 ADMIN: Data to save:', {
-      //   title: dataToSave.title,
-      //   contentLength: dataToSave.content.length,
-      //   imageCount: imageUrls.length,
-      //   codeBlockCount: codeBlocks.length
-      // });
 
       if (isNew) {
         await createDocumentMutation.mutateAsync(dataToSave as CreateDocumentRequest);
@@ -154,7 +221,7 @@ export default function AdminDocumentEditPage() {
         toast.success('Document updated successfully');
       }
     } catch (error) {
-      console.error('❌ ADMIN: Failed to save document:', error);
+      console.error('Failed to save document:', error);
       toast.error('Failed to save document');
     } finally {
       setIsSaving(false);
@@ -178,6 +245,60 @@ export default function AdminDocumentEditPage() {
     }
   };
 
+  const handleImageUpload = () => {
+    const input = window.document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    
+    input.onchange = async (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('Image size must be less than 2MB');
+        return;
+      }
+
+      setIsUploadingImage(true);
+      
+      try {
+        // Upload image to Cloudinary via mutation
+        const result = await uploadImageMutation.mutateAsync(file);
+        
+        if (result && editorInstance) {
+          // Insert image at current cursor position in editor
+          editorInstance.chain().focus().setImage({ src: result.secure_url }).run();
+          toast.success('Image inserted successfully');
+        }
+      } catch (error) {
+        console.error('Failed to upload image:', error);
+        toast.error('Failed to upload image');
+      } finally {
+        setIsUploadingImage(false);
+      }
+    };
+
+    input.click();
+  };
+
+  const insertCodeBlock = () => {
+    if (editorInstance) {
+      editorInstance.chain().focus().setCodeBlock({ language: selectedLanguage }).run();
+    }
+  };
+
+  // Format size for display
+  const formatSize = (bytes: number): string => {
+    if (bytes === 0) return '0 KB';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const isOverSize = documentSize > 5 * 1024 * 1024;
+  const isWarningSize = documentSize > 3 * 1024 * 1024;
+
   if (!isNew && (isLoadingDoc || !isInitialized)) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-gray-50">
@@ -190,63 +311,321 @@ export default function AdminDocumentEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header Bar */}
-      <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
-        <div className="px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => router.push(`/admin/courses/${topicId}`)}
-                className="flex items-center text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeftIcon className="w-5 h-5 mr-1" />
-                Back
-              </button>
-              
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  {isNew ? 'Create Document' : 'Edit Document'}
-                </h1>
-                {topic && (
-                  <p className="text-sm text-gray-500">
-                    Topic: {topic.name}
-                  </p>
-                )}
+    <div className="min-h-screen bg-white flex">
+      {/* Fixed Left Sidebar - Editor Tools */}
+      <div className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0">
+        <div className="sticky top-0 p-4 space-y-4 max-h-screen overflow-y-auto">
+          {/* Back Button */}
+          <button
+            onClick={() => router.push(`/admin/courses/${topicId}`)}
+            className="flex items-center text-gray-700 hover:text-gray-900 font-medium transition-colors w-full"
+          >
+            <ArrowLeftIcon className="w-5 h-5 mr-2" />
+            Back to Topic
+          </button>
+
+          {/* Document Info */}
+          <div className="pb-4 border-b border-gray-300">
+            <h2 className="text-lg font-bold text-gray-900">
+              {isNew ? 'Create Document' : 'Edit Document'}
+            </h2>
+            {topic && (
+              <p className="text-sm text-gray-600 mt-1">
+                Topic: {topic.name}
+              </p>
+            )}
+          </div>
+
+          {/* Editor Tools */}
+          <div className="space-y-4">
+            {/* Text Style */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Text Style
+              </p>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => editorInstance?.chain().focus().toggleBold().run()}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('bold') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                  title="Bold (Ctrl+B)"
+                >
+                  <Bold className="w-4 h-4" />
+                  <span>Bold</span>
+                </button>
+                <button
+                  onClick={() => editorInstance?.chain().focus().toggleItalic().run()}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('italic') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                  title="Italic (Ctrl+I)"
+                >
+                  <Italic className="w-4 h-4" />
+                  <span>Italic</span>
+                </button>
+                <button
+                  onClick={() => editorInstance?.chain().focus().toggleCode().run()}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('code') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                  title="Inline Code"
+                >
+                  <Code className="w-4 h-4" />
+                  <span>Code</span>
+                </button>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-2">
+
+            {/* Headings */}
+            {/* <div className="space-y-2 pt-2 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Headings
+              </p>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => editorInstance?.chain().focus().toggleHeading({ level: 1 }).run()}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('heading', { level: 1 }) ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <Heading1 className="w-4 h-4" />
+                  <span>Heading 1</span>
+                </button>
+                <button
+                  onClick={() => editorInstance?.chain().focus().toggleHeading({ level: 2 }).run()}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('heading', { level: 2 }) ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <Heading2 className="w-4 h-4" />
+                  <span>Heading 2</span>
+                </button>
+                <button
+                  onClick={() => editorInstance?.chain().focus().toggleHeading({ level: 3 }).run()}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('heading', { level: 3 }) ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <Heading3 className="w-4 h-4" />
+                  <span>Heading 3</span>
+                </button>
+              </div>
+            </div> */}
+
+            {/* Colors */}
+            <div className="space-y-2 pt-2 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Colors
+              </p>
+              
+              {/* Text Color */}
+              <div className="space-y-1">
+                <label className="text-xs text-gray-600">Text Color</label>
+                <div className="relative color-picker-container">
+                  <button
+                    onClick={() => setShowTextColorPicker(!showTextColorPicker)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-100 border border-gray-300 transition-colors"
+                  >
+                    <Palette className="w-4 h-4" />
+                    <span className="flex-1 text-left">Select Color</span>
+                    <div 
+                      className="w-6 h-6 rounded border border-gray-300"
+                      style={{ backgroundColor: selectedTextColor }}
+                    />
+                  </button>
+                  
+                  {showTextColorPicker && (
+                    <div className="absolute left-0 top-full mt-1 p-3 bg-white border rounded-lg shadow-lg z-20 w-full">
+                      {/* Color Picker Input */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Pick Custom Color
+                        </label>
+                        <input
+                          type="color"
+                          value={selectedTextColor}
+                          onChange={(e) => {
+                            const color = e.target.value;
+                            setSelectedTextColor(color);
+                            editorInstance?.chain().focus().setColor(color).run();
+                          }}
+                          className="w-full h-10 rounded border border-gray-300 cursor-pointer"
+                        />
+                      </div>
+                      
+                      {/* Preset Colors */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Quick Colors
+                        </label>
+                        <div className="grid grid-cols-5 gap-1">
+                          {COLORS.map(color => (
+                            <button
+                              key={color}
+                              onClick={() => {
+                                editorInstance?.chain().focus().setColor(color).run();
+                                setSelectedTextColor(color);
+                                setShowTextColorPicker(false);
+                              }}
+                              className="w-full h-8 rounded border border-gray-300 hover:scale-110 transition-transform"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Highlight Color */}
+              <div className="space-y-1">
+                <label className="text-xs text-gray-600">Highlight</label>
+                <div className="relative color-picker-container">
+                  <button
+                    onClick={() => setShowHighlightColorPicker(!showHighlightColorPicker)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-100 border border-gray-300 transition-colors"
+                  >
+                    <Highlighter className="w-4 h-4" />
+                    <span className="flex-1 text-left">Select Color</span>
+                    <div 
+                      className="w-6 h-6 rounded border border-gray-300"
+                      style={{ backgroundColor: selectedHighlightColor }}
+                    />
+                  </button>
+                  
+                  {showHighlightColorPicker && (
+                    <div className="absolute left-0 top-full mt-1 p-3 bg-white border rounded-lg shadow-lg z-20 w-full">
+                      {/* Color Picker Input */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Pick Custom Color
+                        </label>
+                        <input
+                          type="color"
+                          value={selectedHighlightColor}
+                          onChange={(e) => {
+                            const color = e.target.value;
+                            setSelectedHighlightColor(color);
+                            editorInstance?.chain().focus().toggleHighlight({ color }).run();
+                          }}
+                          className="w-full h-10 rounded border border-gray-300 cursor-pointer"
+                        />
+                      </div>
+                      
+                      {/* Preset Colors */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Quick Colors
+                        </label>
+                        <div className="grid grid-cols-5 gap-1">
+                          {HIGHLIGHT_COLORS.map(color => (
+                            <button
+                              key={color}
+                              onClick={() => {
+                                editorInstance?.chain().focus().toggleHighlight({ color }).run();
+                                setSelectedHighlightColor(color);
+                                setShowHighlightColorPicker(false);
+                              }}
+                              className="w-full h-8 rounded border border-gray-300 hover:scale-110 transition-transform"
+                              style={{ backgroundColor: color }}
+                              title={color}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Image Upload */}
+            <div className="space-y-2 pt-2 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Media
+              </p>
               <button
-                onClick={() => router.push(`/admin/courses/${topicId}`)}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={handleImageUpload}
+                disabled={isUploadingImage}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-100 border border-gray-300 disabled:opacity-50 transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isSaving ? (
+                {isUploadingImage ? (
                   <>
                     <Loader2Icon className="w-4 h-4 animate-spin" />
-                    Saving...
+                    <span>Uploading...</span>
                   </>
                 ) : (
                   <>
-                    <SaveIcon className="w-4 h-4" />
-                    {isNew ? 'Create' : 'Save'}
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Insert Image</span>
                   </>
                 )}
               </button>
+              <p className="text-xs text-gray-500 px-1">Max 2MB per image</p>
+            </div>
+
+            {/* Code Block */}
+            <div className="space-y-2 pt-2 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Code Block
+              </p>
+              <div className="space-y-2">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {CODE_LANGUAGES.map(lang => (
+                    <option key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={insertCodeBlock}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                    editorInstance?.isActive('codeBlock') ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100 text-gray-700 border border-gray-300'
+                  }`}
+                >
+                  <Terminal className="w-4 h-4" />
+                  <span>Insert Code Block</span>
+                </button>
+              </div>
+            </div>
+
+            {/* History */}
+            <div className="space-y-2 pt-2 border-t border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                History
+              </p>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => editorInstance?.chain().focus().undo().run()}
+                  disabled={!editorInstance?.can().undo()}
+                  className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Undo className="w-4 h-4" />
+                  <span>Undo</span>
+                </button>
+                <button
+                  onClick={() => editorInstance?.chain().focus().redo().run()}
+                  disabled={!editorInstance?.can().redo()}
+                  className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Redo className="w-4 h-4" />
+                  <span>Redo</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Form Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content Area */}
+      <div className="flex-1 max-w-5xl mx-auto px-6 py-8 overflow-y-auto">
         <div className="space-y-6">
           {/* Title and Display Order */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -291,24 +670,21 @@ export default function AdminDocumentEditPage() {
             {isInitialized && (
               <CourseEditor
                 content={formData.content}
-                onChange={(content) => {
-                  // DEBUG: Log when content changes in editor
-                  // console.log('✏️ ADMIN: Editor content changed, length:', content.length);
-                  setFormData({ ...formData, content });
-                }}
+                onChange={(content) => setFormData({ ...formData, content })}
                 placeholder="Start writing your document content..."
+                onEditorReady={setEditorInstance}
               />
             )}
           </div>
 
-          {/* Image Management */}
-          {!isNew && formData.imageUrls && formData.imageUrls.length > 0 && (
+          {/* Image Management - Show in both creation and edit modes */}
+          {uploadedImages.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Attached Images
+                Uploaded Images
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {formData.imageUrls.map((url, index) => (
+                {uploadedImages.map((url, index) => (
                   <div key={index} className="relative group">
                     <Image
                       src={url}
@@ -332,6 +708,144 @@ export default function AdminDocumentEditPage() {
               </p>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Fixed Right Sidebar - Actions & Info */}
+      <div className="w-72 border-l border-gray-200 bg-gray-50 flex-shrink-0">
+        <div className="sticky top-0 p-4 space-y-4 max-h-screen overflow-y-auto">
+          {/* Action Buttons */}
+          <div className="space-y-2">
+            <button
+              onClick={handleSave}
+              disabled={isSaving || isOverSize}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2Icon className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <SaveIcon className="w-4 h-4" />
+                  {isNew ? 'Create Document' : 'Save Changes'}
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => router.push(`/admin/courses/${topicId}`)}
+              className="w-full px-4 py-2.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {/* Document Size - Live Updates */}
+          <div className={`p-4 rounded-lg border-2 transition-all ${
+            isOverSize 
+              ? 'bg-red-50 border-red-500' 
+              : isWarningSize
+              ? 'bg-yellow-50 border-yellow-400'
+              : 'bg-blue-50 border-blue-300'
+          }`}>
+            <div className="flex items-start space-x-2 mb-2">
+              {isOverSize && (
+                <AlertTriangleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              )}
+              <div className="flex-1">
+                <h3 className={`font-semibold text-sm mb-1 ${
+                  isOverSize ? 'text-red-900' : isWarningSize ? 'text-yellow-900' : 'text-blue-900'
+                }`}>
+                  📊 Document Size
+                </h3>
+                <div className={`space-y-1 text-xs ${
+                  isOverSize ? 'text-red-700' : isWarningSize ? 'text-yellow-700' : 'text-blue-700'
+                }`}>
+                  <div className="flex justify-between">
+                    <span>Current:</span>
+                    <span className="font-semibold">{formatSize(documentSize)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Max Limit:</span>
+                    <span className="font-semibold">5.0 MB</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all ${
+                        isOverSize ? 'bg-red-600' : isWarningSize ? 'bg-yellow-500' : 'bg-blue-600'
+                      }`}
+                      style={{ width: `${Math.min((documentSize / (5 * 1024 * 1024)) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+                {isOverSize && (
+                  <div className="mt-2 pt-2 border-t border-red-300">
+                    <p className="text-xs font-semibold text-red-900">
+                      ⚠️ Size limit exceeded!
+                    </p>
+                    <p className="text-xs text-red-700 mt-1">
+                      Please reduce content or compress images before saving.
+                    </p>
+                  </div>
+                )}
+                {isWarningSize && !isOverSize && (
+                  <div className="mt-2 pt-2 border-t border-yellow-300">
+                    <p className="text-xs font-semibold text-yellow-900">
+                      ⚠️ Approaching limit
+                    </p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Consider optimizing content size.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Help */}
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center space-x-2 text-gray-700 font-medium">
+              <HelpCircleIcon className="w-5 h-5" />
+              <span>Quick Help</span>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-1">📝 Formatting</h3>
+              <ul className="space-y-1 text-xs text-gray-600">
+                <li>• Use left toolbar for styles</li>
+                <li>• Select custom colors</li>
+                <li>• Bold, italic, inline code</li>
+              </ul>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-1">🖼️ Images</h3>
+              <ul className="space-y-1 text-xs text-gray-600">
+                <li>• Max 2MB per image</li>
+                <li>• Auto-centered display</li>
+                <li>• Use left sidebar button</li>
+              </ul>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-1">💻 Code Blocks</h3>
+              <ul className="space-y-1 text-xs text-gray-600">
+                <li>• Select language first</li>
+                <li>• Syntax highlighting auto</li>
+                <li>• 20+ languages supported</li>
+              </ul>
+            </div>
+
+            <div className="p-3 bg-white rounded-lg border border-gray-200">
+              <h3 className="font-semibold text-gray-900 mb-1">💡 Tips</h3>
+              <ul className="space-y-1 text-xs text-gray-600">
+                <li>• Save frequently</li>
+                <li>• Compress large images</li>
+                <li>• Preview before publishing</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     </div>
