@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Home,
   Code,
-  BookOpen,
   FolderOpen,
   LogOut,
   User,
@@ -60,13 +59,6 @@ const sidebarItems: SidebarItem[] = [
     icon: Home,
     href: '/me',
     description: 'Overview and stats'
-  },
-  {
-    id: 'questions',
-    label: 'Questions',
-    icon: BookOpen,
-    href: '/questions',
-    description: 'Browse problems'
   },
   {
     id: 'categories',

@@ -1,40 +1,84 @@
 // src/app/admin/courses/[topicId]/page.tsx
 
-'use client';
+"use client";
 
-import { useParams, useRouter } from 'next/navigation';
-import AdminLayout from '@/components/admin/AdminLayout';
-import { 
+import { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import AdminLayout from "@/components/admin/AdminLayout";
+import {
   useDocumentsByTopic,
-  useTopic,
-  useDeleteDocument 
-} from '@/hooks/useCoursesManagement';
+  useDeleteDocument,
+  useAdminTopics,
+  useUpdateDocument,
+} from "@/courses/hooks";
 import {
   DocumentTextIcon,
   PlusIcon,
   PencilIcon,
   TrashIcon,
   ArrowLeftIcon,
-  EyeIcon
-} from '@heroicons/react/24/outline';
-import Link from 'next/link';
-import { dateUtils } from '@/lib/utils/common';
-import { Loader2Icon } from 'lucide-react';
+  EyeIcon,
+  ArrowsRightLeftIcon,
+} from "@heroicons/react/24/outline";
+import Link from "next/link";
+import { dateUtils } from "@/lib/utils/common";
+import { Loader2Icon } from "lucide-react";
+import toast from "react-hot-toast";
+import type { Document } from "@/courses";
 
 export default function AdminTopicDocumentsPage() {
   const params = useParams();
   const router = useRouter();
   const topicId = params.topicId as string;
-  
-  const { data: topic, isLoading: isLoadingTopic } = useTopic(topicId);
-  const { data: docsData, isLoading: isLoadingDocs } = useDocumentsByTopic(topicId);
+
+  const { data: docsData, isLoading: isLoadingDocs } =
+    useDocumentsByTopic(topicId);
+  const { data: allTopicsData } = useAdminTopics();
   const deleteDocumentMutation = useDeleteDocument();
-  
+  const updateDocumentMutation = useUpdateDocument();
+
   const documents = docsData?.docs || [];
+  const allTopics = allTopicsData?.data || [];
+
+  const topic = docsData?.topic;
+
+  const [movingDoc, setMovingDoc] = useState<Document | null>(null);
+  const [selectedTargetTopic, setSelectedTargetTopic] = useState("");
 
   const handleDeleteDocument = async (docId: string) => {
-    if (window.confirm('Are you sure? This will delete the document and all its images permanently!')) {
+    if (
+      window.confirm(
+        "Are you sure? This will delete the document and all its images permanently!"
+      )
+    ) {
       await deleteDocumentMutation.mutateAsync({ docId, topicId });
+    }
+  };
+
+  const handleMoveDocument = async () => {
+    if (!movingDoc || !selectedTargetTopic) return;
+
+    if (selectedTargetTopic === topicId) {
+      toast.error("Document is already in this topic");
+      return;
+    }
+
+    try {
+      await updateDocumentMutation.mutateAsync({
+        docId: movingDoc.id,
+        data: {
+          title: movingDoc.title, // Include the existing title
+          topicId: selectedTargetTopic, // New topic ID
+          displayOrder: movingDoc.displayOrder, // Keep existing order
+          content: movingDoc.content || "", // Include existing content
+          imageUrls: movingDoc.imageUrls || [], // Include existing images
+        },
+      });
+      setMovingDoc(null);
+      setSelectedTargetTopic("");
+      toast.success("Document moved successfully");
+    } catch (error) {
+      console.error("Failed to move document:", error);
     }
   };
 
@@ -44,7 +88,7 @@ export default function AdminTopicDocumentsPage() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  if (isLoadingTopic || isLoadingDocs) {
+  if (isLoadingDocs) {
     return (
       <AdminLayout>
         <div className="flex justify-center items-center min-h-screen">
@@ -73,24 +117,37 @@ export default function AdminTopicDocumentsPage() {
         <div className="mb-8">
           <div className="flex items-center mb-4">
             <button
-              onClick={() => router.push('/admin/courses')}
+              onClick={() => router.push("/admin/courses")}
               className="flex items-center text-gray-600 hover:text-gray-900"
             >
               <ArrowLeftIcon className="w-5 h-5 mr-1" />
               Back to Topics
             </button>
           </div>
-          
+
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-3xl font-bold text-gray-900">{topic.name}</h2>
-              <p className="mt-1 text-sm text-gray-500">
-                {topic.description}
-              </p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-3xl font-bold text-gray-900">
+                  {topic.name}
+                </h2>
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    topic.isPublic
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  {topic.isPublic ? "Public" : "Private"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-gray-500">{topic.description}</p>
               <div className="mt-2 flex items-center space-x-4 text-sm text-gray-500">
                 <span>Created by: {topic.createdByName}</span>
                 <span>•</span>
-                <span>Updated: {dateUtils.formatRelativeTime(topic.updatedAt)}</span>
+                <span>
+                  Updated: {dateUtils.formatRelativeTime(topic.updatedAt)}
+                </span>
               </div>
             </div>
             <Link
@@ -103,6 +160,74 @@ export default function AdminTopicDocumentsPage() {
           </div>
         </div>
 
+        {/* Move Document Modal */}
+        {movingDoc && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                Move Document
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Moving:{" "}
+                    <span className="font-medium">{movingDoc.title}</span>
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    From: <span className="font-medium">{topic.name}</span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Move to Topic:
+                  </label>
+                  <select
+                    value={selectedTargetTopic}
+                    onChange={(e) => setSelectedTargetTopic(e.target.value)}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
+                  >
+                    <option value="">Select a topic...</option>
+                    {allTopics
+                      .filter((t) => t.id !== topicId)
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} {t.isPublic ? "(Public)" : "(Private)"}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setMovingDoc(null);
+                    setSelectedTargetTopic("");
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleMoveDocument}
+                  disabled={
+                    !selectedTargetTopic || updateDocumentMutation.isPending
+                  }
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {updateDocumentMutation.isPending ? (
+                    <Loader2Icon className="w-5 h-5 animate-spin" />
+                  ) : (
+                    "Move Document"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Documents List */}
         <div className="bg-white shadow overflow-hidden rounded-lg">
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
@@ -110,11 +235,13 @@ export default function AdminTopicDocumentsPage() {
               Documents ({documents.length})
             </h3>
           </div>
-          
+
           {documents.length === 0 ? (
             <div className="text-center py-12">
               <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No documents</h3>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">
+                No documents
+              </h3>
               <p className="mt-1 text-sm text-gray-500">
                 Get started by creating a new document for this topic.
               </p>
@@ -147,12 +274,15 @@ export default function AdminTopicDocumentsPage() {
                               <span>{doc.imageUrls.length} images</span>
                             )}
                             <span>By: {doc.createdByName}</span>
-                            <span>Updated: {dateUtils.formatRelativeTime(doc.updatedAt)}</span>
+                            <span>
+                              Updated:{" "}
+                              {dateUtils.formatRelativeTime(doc.updatedAt)}
+                            </span>
                           </div>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2 ml-4">
                       <Link
                         href={`/interview-prep/${topicId}/${doc.id}`}
@@ -162,6 +292,16 @@ export default function AdminTopicDocumentsPage() {
                       >
                         <EyeIcon className="h-4 w-4" />
                       </Link>
+                      <button
+                        onClick={() => {
+                          setMovingDoc(doc);
+                          setSelectedTargetTopic("");
+                        }}
+                        className="inline-flex items-center p-1.5 border border-transparent rounded-full text-purple-600 hover:bg-purple-100 focus:outline-none"
+                        title="Move to another topic"
+                      >
+                        <ArrowsRightLeftIcon className="h-4 w-4" />
+                      </button>
                       <Link
                         href={`/admin/courses/${topicId}/${doc.id}`}
                         className="inline-flex items-center p-1.5 border border-transparent rounded-full text-blue-600 hover:bg-blue-100 focus:outline-none"

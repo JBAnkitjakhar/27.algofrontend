@@ -5,12 +5,13 @@
 import { useState } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { 
-  useTopics, 
+  useAdminTopics, 
   useCreateTopic, 
   useUpdateTopic, 
   useDeleteTopic,
+  useToggleTopicVisibility,
   useCourseStats 
-} from '@/hooks/useCoursesManagement';
+} from '@/courses/hooks';
 import { 
   AcademicCapIcon,
   PlusIcon,
@@ -18,14 +19,14 @@ import {
   TrashIcon,
   DocumentTextIcon,
   ChevronRightIcon,
+  EyeIcon,
+  EyeSlashIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { Topic, CreateTopicRequest, UpdateTopicRequest } from '@/types/courses';
-import { dateUtils } from '@/lib/utils/common';
+import type { Topic, CreateTopicRequest } from '@/courses';
 import Image from 'next/image';
 import { Loader2Icon } from 'lucide-react';
 
-// Helper function to check if URL is from a configured domain
 const isConfiguredDomain = (url: string): boolean => {
   try {
     const hostname = new URL(url).hostname;
@@ -41,19 +42,22 @@ const isConfiguredDomain = (url: string): boolean => {
 };
 
 export default function AdminCoursesPage() {
-  const { data: topicsData, isLoading: isLoadingTopics } = useTopics();
+  const { data: topicsData, isLoading: isLoadingTopics } = useAdminTopics();
   const { data: stats, isLoading: isLoadingStats } = useCourseStats();
   const createTopicMutation = useCreateTopic();
   const updateTopicMutation = useUpdateTopic();
   const deleteTopicMutation = useDeleteTopic();
+  const toggleVisibilityMutation = useToggleTopicVisibility();
   
   const [isCreating, setIsCreating] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [togglingTopic, setTogglingTopic] = useState<Topic | null>(null); // ✅ NEW: For confirmation modal
   const [formData, setFormData] = useState<CreateTopicRequest>({
     name: '',
     description: '',
     displayOrder: 1,
-    iconUrl: ''
+    iconUrl: '',
+    isPublic: true
   });
 
   const topics = topicsData?.data || [];
@@ -62,7 +66,7 @@ export default function AdminCoursesPage() {
     if (editingTopic) {
       await updateTopicMutation.mutateAsync({
         topicId: editingTopic.id,
-        data: formData as UpdateTopicRequest
+        data: formData
       });
       setEditingTopic(null);
     } else {
@@ -74,7 +78,8 @@ export default function AdminCoursesPage() {
       name: '',
       description: '',
       displayOrder: 1,
-      iconUrl: ''
+      iconUrl: '',
+      isPublic: true
     });
   };
 
@@ -84,7 +89,8 @@ export default function AdminCoursesPage() {
       name: topic.name,
       description: topic.description,
       displayOrder: topic.displayOrder,
-      iconUrl: topic.iconUrl || ''
+      iconUrl: topic.iconUrl || '',
+      isPublic: topic.isPublic
     });
     setIsCreating(true);
   };
@@ -93,6 +99,14 @@ export default function AdminCoursesPage() {
     if (window.confirm('Are you sure? This will delete the topic and ALL its documents and images permanently!')) {
       await deleteTopicMutation.mutateAsync(topicId);
     }
+  };
+
+  // ✅ NEW: Confirm before toggling
+  const handleToggleVisibilityConfirm = async () => {
+    if (!togglingTopic) return;
+    
+    await toggleVisibilityMutation.mutateAsync(togglingTopic.id);
+    setTogglingTopic(null);
   };
 
   return (
@@ -115,7 +129,8 @@ export default function AdminCoursesPage() {
                   name: '',
                   description: '',
                   displayOrder: 1,
-                  iconUrl: ''
+                  iconUrl: '',
+                  isPublic: true
                 });
               }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -156,6 +171,50 @@ export default function AdminCoursesPage() {
             </div>
           </div>
         </div>
+
+        {/* ✅ NEW: Toggle Visibility Confirmation Modal */}
+        {togglingTopic && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                Confirm Visibility Change
+              </h3>
+              
+              <p className="text-sm text-gray-700 mb-6">
+                Are you sure you want to make <span className="font-semibold">{togglingTopic.name}</span>{' '}
+                <span className="font-semibold">
+                  {togglingTopic.isPublic ? 'private' : 'public'}
+                </span>?
+              </p>
+
+              {togglingTopic.isPublic && (
+                <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ Making this topic private will hide it from all users.
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setTogglingTopic(null)}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleToggleVisibilityConfirm}
+                  disabled={toggleVisibilityMutation.isPending}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {toggleVisibilityMutation.isPending ? (
+                    <Loader2Icon className="w-5 h-5 animate-spin" />
+                  ) : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Create/Edit Form Modal */}
         {isCreating && (
@@ -215,9 +274,18 @@ export default function AdminCoursesPage() {
                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm p-2 border"
                     placeholder="https://example.com/icon.png"
                   />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Note: External URLs will be loaded without optimization
-                  </p>
+                </div>
+
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={formData.isPublic}
+                      onChange={(e) => setFormData({ ...formData, isPublic: e.target.checked })}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">Public (visible to users)</span>
+                  </label>
                 </div>
               </div>
               
@@ -282,7 +350,6 @@ export default function AdminCoursesPage() {
                               className="h-10 w-10 rounded-full object-cover"
                             />
                           ) : (
-                            // Use regular img tag for external URLs
                             // eslint-disable-next-line @next/next/no-img-element
                             <img 
                               src={topic.iconUrl} 
@@ -297,16 +364,23 @@ export default function AdminCoursesPage() {
                         )}
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
-                          {topic.name}
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {topic.name}
+                          </span>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            topic.isPublic 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {topic.isPublic ? 'Public' : 'Private'}
+                          </span>
                         </div>
                         <div className="text-sm text-gray-500">
                           {topic.description}
                         </div>
                         <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
-                          <span>{topic.docsCount} documents</span>
                           <span>Order: {topic.displayOrder}</span>
-                          <span>Created: {dateUtils.formatDate(topic.createdAt)}</span>
                         </div>
                       </div>
                     </div>
@@ -319,6 +393,23 @@ export default function AdminCoursesPage() {
                         View Docs
                         <ChevronRightIcon className="ml-1 h-3 w-3" />
                       </Link>
+                      {/* ✅ UPDATED: Opens confirmation modal */}
+                      <button
+                        onClick={() => setTogglingTopic(topic)}
+                        disabled={toggleVisibilityMutation.isPending}
+                        className={`inline-flex items-center p-1.5 border border-transparent rounded-full ${
+                          topic.isPublic 
+                            ? 'text-green-600 hover:bg-green-100' 
+                            : 'text-gray-600 hover:bg-gray-100'
+                        } focus:outline-none disabled:opacity-50`}
+                        title={topic.isPublic ? 'Make Private' : 'Make Public'}
+                      >
+                        {topic.isPublic ? (
+                          <EyeIcon className="h-4 w-4" />
+                        ) : (
+                          <EyeSlashIcon className="h-4 w-4" />
+                        )}
+                      </button>
                       <button
                         onClick={() => handleEdit(topic)}
                         className="inline-flex items-center p-1.5 border border-transparent rounded-full text-blue-600 hover:bg-blue-100 focus:outline-none"
