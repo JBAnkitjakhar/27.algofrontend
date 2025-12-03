@@ -1,6 +1,6 @@
 // src/app/admin/users/page.tsx - FIXED API error with search functionality
 
-"use client";
+'use client';
 
 import { useState, useMemo } from "react";
 import Image from "next/image";
