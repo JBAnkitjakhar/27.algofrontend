@@ -1,18 +1,17 @@
-// src/components/admin/CourseEditor.tsx
+// src/having/userQuestion/components/TipTapViewer.tsx
 
 'use client';
 
-import { useEditor, EditorContent, Editor } from '@tiptap/react';
+import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import {TextStyle} from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { createLowlight } from 'lowlight';
-
-// Import individual languages for better highlighting
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
 import python from 'highlight.js/lib/languages/python';
@@ -27,22 +26,17 @@ import rust from 'highlight.js/lib/languages/rust';
 import kotlin from 'highlight.js/lib/languages/kotlin';
 import swift from 'highlight.js/lib/languages/swift';
 import sql from 'highlight.js/lib/languages/sql';
-import xml from 'highlight.js/lib/languages/xml'; // for HTML
+import xml from 'highlight.js/lib/languages/xml';
 import css from 'highlight.js/lib/languages/css';
 import json from 'highlight.js/lib/languages/json';
 import bash from 'highlight.js/lib/languages/bash';
 import yaml from 'highlight.js/lib/languages/yaml';
 import markdown from 'highlight.js/lib/languages/markdown';
-
-import Placeholder from '@tiptap/extension-placeholder';
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import './styles/CourseEditorHighlighting.css';
+import './styles/TipTapViewerHighlighting.css';
 
-// Create lowlight instance with all languages
 const lowlight = createLowlight();
 
-// Register all languages
 lowlight.register('javascript', javascript);
 lowlight.register('js', javascript);
 lowlight.register('typescript', typescript);
@@ -76,24 +70,14 @@ lowlight.register('yml', yaml);
 lowlight.register('markdown', markdown);
 lowlight.register('md', markdown);
 
-interface CourseEditorProps {
+interface TipTapViewerProps {
   content: string;
-  onChange: (content: string) => void;
-  placeholder?: string;
-  editable?: boolean;
-  onEditorReady?: (editor: Editor) => void;
+  className?: string;
 }
 
-export default function CourseEditor({ 
-  content, 
-  onChange, 
-  placeholder = 'Start writing your content...',
-  editable = true,
-  onEditorReady
-}: CourseEditorProps) {
+export function TipTapViewer({ content, className = '' }: TipTapViewerProps) {
   const [isMounted, setIsMounted] = useState(false);
 
-  // Ensure we're on client side
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -101,7 +85,7 @@ export default function CourseEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        codeBlock: false, // We'll use CodeBlockLowlight instead
+        codeBlock: false,
       }),
       TextStyle,
       Color,
@@ -116,6 +100,12 @@ export default function CourseEditor({
           class: 'max-w-full h-auto rounded-lg my-4',
         },
       }),
+      Link.configure({
+        openOnClick: true,
+        HTMLAttributes: {
+          class: 'text-blue-600 dark:text-blue-400 hover:underline',
+        },
+      }),
       CodeBlockLowlight.configure({
         lowlight,
         HTMLAttributes: {
@@ -124,51 +114,32 @@ export default function CourseEditor({
         },
         defaultLanguage: 'javascript',
       }),
-      Placeholder.configure({
-        placeholder,
-      }),
     ],
-    content: content || '',
-    onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
-    },
-    editable,
+    content: '',
+    editable: false,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-lg max-w-none focus:outline-none min-h-[500px] p-4',
+        class: `prose prose-sm dark:prose-invert max-w-none ${className}`,
       },
     },
-    immediatelyRender: false,
   });
 
-  // Pass editor instance to parent when ready
-  useEffect(() => {
-    if (editor && onEditorReady) {
-      onEditorReady(editor);
-    }
-  }, [editor, onEditorReady]);
-
-  // Update editor content when prop changes (only after mounted)
   useEffect(() => {
     if (isMounted && editor && content !== editor.getHTML()) {
       const timer = setTimeout(() => {
-        editor.commands.setContent(content || '', { emitUpdate: false });
-      }, 10);
+        editor.commands.setContent(content, { emitUpdate: false });
+      }, 50);
       return () => clearTimeout(timer);
     }
-  }, [content, editor, isMounted]);
+  }, [isMounted, editor, content]);
 
   if (!editor) {
-    return (
-      <div className="border border-gray-300 rounded-lg p-4 min-h-[500px] flex items-center justify-center bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="border border-gray-300 rounded-lg overflow-hidden bg-white">
-      {/* No toolbar - all controls in left sidebar */}
+    <div className="tiptap-viewer">
       <EditorContent editor={editor} />
     </div>
   );

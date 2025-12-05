@@ -18,7 +18,6 @@ import type {
 } from "@/having/adminQuestions/types";
 import {
   Loader2Icon,
-  ArrowLeftIcon,
   SaveIcon,
   HelpCircleIcon,
   AlertTriangleIcon,
@@ -296,7 +295,7 @@ export default function EditQuestionPage() {
     setErrors([]);
 
     // ✅ Log for debugging
-    console.log("Submitting with imageUrls:", updatedFormData.imageUrls);
+    // console.log("Submitting with imageUrls:", updatedFormData.imageUrls);
 
     updateQuestionMutation.mutate(
       { id: questionId, request: updatedFormData },
@@ -363,13 +362,13 @@ export default function EditQuestionPage() {
       />
 
       <div className="flex-1 max-w-5xl mx-auto px-6 py-8 overflow-y-auto">
-        <button
+        {/* <button
           onClick={() => router.push(ADMIN_ROUTES.QUESTIONS)}
           className="flex items-center text-gray-700 hover:text-gray-900 font-medium transition-colors mb-6"
         >
           <ArrowLeftIcon className="w-5 h-5 mr-2" />
           Back to Questions
-        </button>
+        </button> */}
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Edit Question</h1>
@@ -492,17 +491,6 @@ export default function EditQuestionPage() {
             />
           </div>
 
-          {/* Code Snippets */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Starter Code Templates (Optional)
-            </label>
-            <CodeSnippetsManager
-              codeSnippets={formData.codeSnippets || []}
-              onChange={(snippets) => updateFormData("codeSnippets", snippets)}
-            />
-          </div>
-
           {/* ✅ Uploaded Images Section */}
           {currentImages.length > 0 && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -559,6 +547,17 @@ export default function EditQuestionPage() {
               )}
             </div>
           )}
+
+          {/* Code Snippets */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Starter Code Templates (Optional)
+            </label>
+            <CodeSnippetsManager
+              codeSnippets={formData.codeSnippets || []}
+              onChange={(snippets) => updateFormData("codeSnippets", snippets)}
+            />
+          </div>
         </form>
       </div>
 

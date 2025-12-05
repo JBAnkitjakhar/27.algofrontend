@@ -4,6 +4,7 @@
 
 import { Editor } from "@tiptap/react";
 import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bold,
   Italic,
@@ -18,10 +19,12 @@ import {
   Redo,
   Palette,
   Highlighter,
+  ArrowLeft,
 } from "lucide-react";
 import { useUploadQuestionImage } from "../hooks";
 import toast from "react-hot-toast";
 import { PROGRAMMING_LANGUAGES, QUESTION_VALIDATION } from "../constants";
+import { ADMIN_ROUTES } from "@/constants";
 
 const COLORS = [
   "#000000",
@@ -63,6 +66,7 @@ export function QuestionEditorSidebar({
   editor,
   onImageUpload, // ✅ NEW
 }: QuestionEditorSidebarProps) {
+  const router = useRouter();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
   const [showHighlightColorPicker, setShowHighlightColorPicker] =
@@ -78,7 +82,7 @@ export function QuestionEditorSidebar({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    console.log("🔍 Step 1: File selected:", file.name);
+    // console.log("🔍 Step 1: File selected:", file.name);
 
     if (!file.type.startsWith("image/")) {
       toast.error("Please select a valid image file");
@@ -101,16 +105,16 @@ export function QuestionEditorSidebar({
       return;
     }
 
-    console.log("🔍 Step 2: Editor check passed, editor exists:", !!editor);
+    // console.log("🔍 Step 2: Editor check passed, editor exists:", !!editor);
 
     setIsUploadingImage(true);
 
     try {
       const result = await uploadImageMutation.mutateAsync(file);
-      console.log("🔍 Step 3: Upload response:", result);
+      // console.log("🔍 Step 3: Upload response:", result);
 
       if (result.secure_url) {
-        console.log("🔍 Step 4: Inserting image with URL:", result.secure_url);
+        // console.log("🔍 Step 4: Inserting image with URL:", result.secure_url);
 
         // ✅ Double check editor still exists
         if (!editor) {
@@ -133,7 +137,7 @@ export function QuestionEditorSidebar({
             })
             .run();
 
-          console.log("🔍 Step 5: Image inserted successfully");
+          // console.log("🔍 Step 5: Image inserted successfully");
 
           // Add line break after image
           editor.chain().focus().insertContent("<p></p>").run();
@@ -149,7 +153,7 @@ export function QuestionEditorSidebar({
 
         // ✅ Notify parent component
         if (onImageUpload) {
-          console.log("🔍 Step 6: Calling onImageUpload");
+          // console.log("🔍 Step 6: Calling onImageUpload");
           onImageUpload(result.secure_url);
         }
 
@@ -177,11 +181,19 @@ export function QuestionEditorSidebar({
 
   if (!editor) return null;
 
-  return (
+ return (
     <div className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0">
       <div className="sticky top-0 p-4 space-y-4 max-h-screen overflow-y-auto">
-        <h2 className="text-lg font-bold text-gray-900">Editor Tools</h2>
+        {/* Back Button */}
+        <button
+          onClick={() => router.push(ADMIN_ROUTES.QUESTIONS)}
+          className="flex items-center text-gray-700 hover:text-gray-900 font-medium transition-colors w-full"
+        >
+          <ArrowLeft className="w-5 h-5 mr-2" />
+          Back to Questions
+        </button>
 
+        <div className="border-t border-gray-300" />
         {/* Text Style */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">

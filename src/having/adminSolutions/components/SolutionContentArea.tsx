@@ -1,22 +1,18 @@
 // src/having/adminSolutions/components/SolutionContentArea.tsx
-// Middle area with toggle between Editor and Visualizers
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Editor } from "@tiptap/react";
-import { FileText} from "lucide-react";
+import { FileText } from "lucide-react";
 import { SolutionEditor } from "./SolutionEditor";
 import { CubeTransparentIcon } from "@heroicons/react/24/outline";
 import { VisualizerManager } from "./VisualizerManager";
 
 interface SolutionContentAreaProps {
-  // Editor props
   content: string;
   onContentChange: (content: string) => void;
   onEditorReady?: (editor: Editor) => void;
-  
-  // Visualizer props
   solutionId?: string;
   visualizerFileIds: string[];
   onVisualizerFileIdsChange: (fileIds: string[]) => void;
@@ -31,12 +27,25 @@ export function SolutionContentArea({
   onVisualizerFileIdsChange,
 }: SolutionContentAreaProps) {
   const [activeView, setActiveView] = useState<"editor" | "visualizers">("editor");
+  const visualizerCount = visualizerFileIds.length;
+
+  // ✅ Force re-render when visualizerFileIds changes
+  useEffect(() => {
+    console.log("🔄 visualizerFileIds changed:", visualizerFileIds);
+  }, [visualizerFileIds]);
+
+  console.log("🔄 SolutionContentArea render:", {
+    visualizerCount,
+    fileIds: visualizerFileIds,
+    activeView,
+  });
 
   return (
     <div className="flex-1 flex flex-col">
-      {/* Toggle Buttons */}
+      {/* ✅ BOTH BUTTONS - Editor and Visualizers */}
       <div className="bg-gray-50 border-b border-gray-200 px-4 py-2">
         <div className="flex space-x-2">
+          {/* ✅ EDITOR BUTTON */}
           <button
             type="button"
             onClick={() => setActiveView("editor")}
@@ -49,6 +58,8 @@ export function SolutionContentArea({
             <FileText className="w-4 h-4" />
             Solution Editor
           </button>
+
+          {/* ✅ VISUALIZERS BUTTON */}
           <button
             type="button"
             onClick={() => setActiveView("visualizers")}
@@ -59,12 +70,11 @@ export function SolutionContentArea({
             }`}
           >
             <CubeTransparentIcon className="w-4 h-4" />
-            Visualizers ({visualizerFileIds.length}/2)
+            Visualizers ({visualizerCount}/2)
           </button>
         </div>
       </div>
 
-      {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-4">
         {activeView === "editor" ? (
           <SolutionEditor
@@ -75,6 +85,7 @@ export function SolutionContentArea({
           />
         ) : (
           <VisualizerManager
+            // key={visualizerFileIds.join(",")} // ✅ Force remount when fileIds change
             solutionId={solutionId}
             visualizerFileIds={visualizerFileIds}
             onVisualizerFileIdsChange={onVisualizerFileIdsChange}
